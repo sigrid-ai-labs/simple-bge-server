@@ -1,65 +1,65 @@
-FROM nvidia/cuda:12.1.0-base-ubuntu22.04 as base
+# -------------------
+# 1) Builder stage
+# -------------------
+FROM nvidia/cuda:12.2.0-base-ubuntu22.04 AS build
 
+# Avoid interactive prompts in apt-get, set locale
 ENV DEBIAN_FRONTEND=noninteractive \
-    PIP_DEFAULT_TIMEOUT=60 \
-    PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1 \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-# Install Python and system dependencies
+# Install only essentials (no python from apt)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3.11-dev \
-    python3.11-venv \
-    python3-pip \
-    curl \
-    gcc \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv (Astral)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/usr/local/bin:$PATH"
+
+# link `uv` to /root/.local/bin
+RUN ln -s /root/.local/bin/uv /usr/local/bin/uv
+
+# Install Python via uv (pick the version you need)
+RUN uv python install 3.12
+
+# Create project directory and copy code
 WORKDIR /app
-
-# Install uv and create virtual environment
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    /root/.local/bin/uv venv .venv
-
-# Activate virtual environment in subsequent commands
-ENV PATH="/root/.local/bin:/app/.venv/bin:$PATH"
-ENV VIRTUAL_ENV="/app/.venv"
-
-# Copy source code and requirements
-COPY main.py .
 COPY pyproject.toml .
+COPY main.py .
 
-# Install dependencies using uv
-RUN uv pip install \
-    "fastapi>=0.115.6" \
-    "flagembedding>=1.3.3" \
-    "pydantic>=2.10.4" \
-    "astral-uv>=1.0.2" \
-    "torch>=2.2.0" \
-    "numpy>=1.24.0"
+# Install dependencies via uv sync
+RUN uv sync
 
-# Start second stage
-FROM nvidia/cuda:12.1.0-base-ubuntu22.04
+# -------------------
+# 2) Final / runtime stage
+# -------------------
+FROM nvidia/cuda:12.2.0-base-ubuntu22.04
 
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# Create matching directories
+RUN mkdir -p /root/.local/bin && mkdir -p /root/.local/share/uv
+
+# 1) Copy uv (and the symlink) from build stage
+COPY --from=build /root/.local/bin/uv /root/.local/bin/uv
+
+# 2) Copy uv-managed Python from build stage
+COPY --from=build /root/.local/share/uv /root/.local/share/uv
+
+# 3) Ensure uv and installed Python are on PATH
+ENV PATH="/root/.local/bin:/root/.local/share/uv/python/default/bin:$PATH"
+
+# 4) Copy your application folder
 WORKDIR /app
+COPY --from=build /app /app
 
-# Copy virtual environment and uv from base stage
-COPY --from=base /app/.venv /app/.venv
-COPY --from=base /root/.local/bin/uv /usr/local/bin/uv
-COPY --from=base /app/main.py /app/main.py
-
-# Set the environment variables for the new stage
-ENV PATH="/usr/local/bin:/app/.venv/bin:$PATH"
-ENV VIRTUAL_ENV="/app/.venv"
-
-# Expose port
+# 5) Expose the application port
 EXPOSE 8000
 
-# Start the application with Astral
-# CMD ["python", "-m", "astral", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
-
-CMD ["uvicorn", "main:app", "--host=0.0.0.0", "--port=80", "--loop=uvloop"]
+# 6) Run your app via uv
+CMD ["uv", "run", "uvicorn", "main:app", "--host=0.0.0.0", "--port=8000", "--loop=uvloop"]
