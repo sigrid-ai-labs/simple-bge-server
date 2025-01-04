@@ -36,7 +36,8 @@ RUN uv sync
 # -------------------
 # 2) Final / runtime stage
 # -------------------
-FROM nvidia/cuda:12.2.0-base-ubuntu22.04
+# FROM nvidia/cuda:12.2.0-base-ubuntu22.04
+FROM base
 
 # Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive \
