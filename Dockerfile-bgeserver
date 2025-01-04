@@ -64,4 +64,4 @@ COPY --from=build /app /app
 EXPOSE 8000
 
 # 6) Run your app via uv
-CMD ["uv", "run", "uvicorn", "main:app", "--host=0.0.0.0", "--port=8000", "--loop=uvloop"]
+CMD ["uv", "run", "uvicorn", "main:app", "--host=0.0.0.0", "--port=8000", "--loop=asyncio"]
