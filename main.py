@@ -143,7 +143,7 @@ async def compute_relevance_scores(request: TextPairRequest):
         )
 
 
-@app.get("/health")
+@app.get("/_health")
 async def health_check():
     """서버 상태 확인"""
     return {"status": "healthy", "model_loaded": global_model is not None}
