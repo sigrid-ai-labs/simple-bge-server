@@ -1,7 +1,8 @@
 # -------------------
 # 1) Builder stage
 # -------------------
-FROM nvidia/cuda:12.2.0-base-ubuntu22.04 AS build
+# FROM nvidia/cuda:12.2.0-base-ubuntu22.04 AS build
+FROM docker.io/nvidia/cuda:12.2.2-cudnn8-devel-ubuntu22.04
 
 # Avoid interactive prompts in apt-get, set locale
 ENV DEBIAN_FRONTEND=noninteractive \
